@@ -1,8 +1,7 @@
 #!/usr/bin/python
 
 import os
-import cli.app
-import cli.log
+import argparse
 import logging
 import re
 from math import floor
@@ -18,8 +17,7 @@ from reportlab.lib.pagesizes import A5
 from PyPDF2 import PdfFileMerger
 from sys import exit
 
-LOGGER = cli.log.CommandLineLogger(__name__)
-LOGGER.addHandler(logging.StreamHandler())
+LOGGER = logging.getLogger(__name__)
 
 # Directory with the extracted images, divided in folders
 EXTRACT_DIR = '.extracted'
@@ -34,11 +32,10 @@ main_dir = ''
 # CPUs availables for parallel work
 CPU_COUNT = cpu_count()
 
-@cli.log.LoggingApp
-def merge(app):
+def merge():
 
     # Set parameters
-    LOGGER.setLevel(merge.params)
+    LOGGER.setLevel(computeLogLevel(merge.params))
 
     global main_dir
     main_dir = merge.params.path
@@ -434,16 +431,41 @@ def makeVolume(path, isPdf, imgs):
 # Alias
 groupDirs = groupZips
 
-# parameters
-merge.add_param('path', help='path to your cbz archives', type=str)
-merge.add_param('-a', '--archive', help='name of your compressed cbz file', type=str, default='CBZ_Archive')
-merge.add_param('-vo', '--volumize', help='generate one archive per volume, using user provided regex', default=False, type=str)
-merge.add_param('--pdf', help='output in pdf format', default=False, action="store_true")
-merge.add_param('--compression', help='pdf pages compression from 0 to 1', default=0.8)
+
+def computeLogLevel(params):
+    """
+    Translates the -v/-q/-s parameters into a logging level, mirroring
+    the verbosity scheme previously provided by pyCLI's CommandLineLogger.
+    :param params: Parsed argparse namespace with quiet/verbose/silent attrs
+    :return: A logging level
+    """
+    if params.silent:
+        return logging.CRITICAL
+
+    level = logging.WARN + (10 * (params.quiet - params.verbose))
+    return logging.DEBUG if level <= logging.NOTSET else level
+
+
+def buildArgParser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path', help='path to your cbz archives', type=str)
+    parser.add_argument('-a', '--archive', help='name of your compressed cbz file', type=str, default='CBZ_Archive')
+    parser.add_argument('-vo', '--volumize', help='generate one archive per volume, using user provided regex', default=False, type=str)
+    parser.add_argument('--pdf', help='output in pdf format', default=False, action='store_true')
+    parser.add_argument('--compression', help='pdf pages compression from 0 to 1', default=0.8, type=float)
+    parser.add_argument('-l', '--logfile', help='log to file (default: log to stdout)', default=None)
+    parser.add_argument('-q', '--quiet', help='decrease the verbosity', default=0, action='count')
+    parser.add_argument('-s', '--silent', help='only log warnings', default=False, action='store_true')
+    parser.add_argument('-v', '--verbose', help='raise the verbosity', default=0, action='count')
+    return parser
+
 
 if __name__ == "__main__":
+    merge.params = buildArgParser().parse_args()
+    LOGGER.addHandler(logging.FileHandler(merge.params.logfile) if merge.params.logfile else logging.StreamHandler())
+
     try:
-        merge.run()
+        merge()
     except Exception as e:
         print(e)
         raise e

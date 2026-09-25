@@ -1,5 +1,4 @@
 natsort==7.1.1
 Pillow==8.3.1
-pyCLI==2.0.3
 PyPDF2==1.26.0
 reportlab==3.5.68
